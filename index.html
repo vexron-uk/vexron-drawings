@@ -31,7 +31,7 @@
   .titlerow{display:flex; align-items:center; gap:10px;}
   .backbtn{width:36px; height:36px; display:flex; align-items:center; justify-content:center; background:var(--panel2); border:1px solid var(--line); border-radius:8px; color:var(--text); font-size:22px; line-height:1; padding:0; margin:0; cursor:pointer; flex-shrink:0; -webkit-tap-highlight-color:transparent;}
   .backbtn:active{background:var(--line);}
-  .logo{height:auto; width:64px; aspect-ratio:1/1; border-radius:14px; flex-shrink:0; align-self:stretch; object-fit:cover;}
+  .logo{width:52px; height:52px; border-radius:14px; flex-shrink:0; object-fit:cover;}
   .brand h1{font-size:16px; margin:0; font-weight:650; letter-spacing:-.01em;}
 
   .crumbs{display:flex; align-items:center; gap:6px; margin-bottom:10px; min-height:20px;}
@@ -146,6 +146,7 @@ function matchesSearch(row,q){
 function render(){
   renderCrumbs();
   document.getElementById('backBtn').style.display = (nav.level === 'clients') ? 'none' : '';
+  if(typeof syncLogoSize === 'function') syncLogoSize();
   const q = document.getElementById('search').value.trim();
   const list = document.getElementById('list');
   const stats = document.getElementById('stats');
@@ -237,6 +238,21 @@ function attachPartHandlers(){
 
 document.getElementById('search').addEventListener('input', render);
 render();
+
+function syncLogoSize(){
+  const headtext = document.querySelector('.headtext');
+  const logo = document.querySelector('.logo');
+  if(!headtext || !logo) return;
+  const h = headtext.offsetHeight;
+  if(h > 0){
+    logo.style.width = h + 'px';
+    logo.style.height = h + 'px';
+  }
+}
+syncLogoSize();
+window.addEventListener('resize', syncLogoSize);
+window.addEventListener('orientationchange', syncLogoSize);
+if(document.fonts && document.fonts.ready){ document.fonts.ready.then(syncLogoSize); }
 </script>
 </body>
 </html>

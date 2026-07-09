@@ -164,6 +164,9 @@ function render(){
     } else {
       descEl.style.display = 'none';
     }
+  } else if(nav.level === 'projects' && nav.client){
+    titleEl.textContent = nav.client;
+    descEl.style.display = 'none';
   } else {
     titleEl.textContent = 'Drawings';
     descEl.style.display = 'none';

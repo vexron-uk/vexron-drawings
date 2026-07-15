@@ -155,8 +155,9 @@ function clearSearch(){
 
 function matchesSearch(row,q){
   if(!q) return true;
-  q = q.toLowerCase();
-  return (row.part+row.desc+row.project+row.client).toLowerCase().includes(q);
+  const haystack = (row.part+' '+row.desc+' '+row.project+' '+row.client).toLowerCase();
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  return words.every(w => haystack.includes(w));
 }
 
 function render(){
@@ -191,9 +192,13 @@ function render(){
   // global search overrides drill-down navigation
   if(q){
     const qLower = q.toLowerCase();
+    const words = qLower.split(/\s+/).filter(Boolean);
     const clients = Array.from(new Set(DATA.map(d=>d.client)));
     const exactClient = clients.find(c => c.toLowerCase() === qLower);
     const prefixMatches = clients.filter(c => c.toLowerCase().startsWith(qLower));
+    const firstWordClient = words.length > 1
+      ? clients.find(c => c.toLowerCase() === words[0])
+      : null;
 
     let rows, scopeLabel;
     if(exactClient){
@@ -202,6 +207,10 @@ function render(){
     } else if(prefixMatches.length === 1){
       rows = DATA.filter(r => r.client === prefixMatches[0]);
       scopeLabel = prefixMatches[0];
+    } else if(firstWordClient){
+      const rest = words.slice(1).join(' ');
+      rows = DATA.filter(r => r.client === firstWordClient && matchesSearch(r, rest));
+      scopeLabel = firstWordClient;
     } else {
       rows = DATA.filter(r => matchesSearch(r,q));
       scopeLabel = null;

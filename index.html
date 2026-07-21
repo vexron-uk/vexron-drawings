@@ -52,11 +52,8 @@
   #stats{padding:8px 16px; font-size:11.5px; color:var(--sub); font-family:var(--mono); flex-shrink:0;}
   main{flex:1; overflow-y:auto; padding-bottom:20px;}
 
-  .picstrip-wrap{padding:12px 16px 4px;}
-  .picstrip-label{font-size:11.5px; color:var(--sub); font-family:var(--mono); margin-bottom:8px;}
-  .picstrip{display:flex; gap:8px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none;}
-  .picstrip::-webkit-scrollbar{display:none;}
-  .picstrip img{width:72px; height:72px; object-fit:cover; border-radius:8px; flex-shrink:0; background:var(--panel2); cursor:pointer;}
+  .picgrid{display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; padding:12px 16px;}
+  .picgrid img{width:100%; aspect-ratio:1/1; object-fit:cover; border-radius:8px; background:var(--panel2); cursor:pointer;}
 
   .lightbox{position:fixed; inset:0; background:rgba(0,0,0,.94); z-index:1000; display:none; align-items:center; justify-content:center; touch-action:pan-y;}
   .lightbox.open{display:flex;}
@@ -150,6 +147,7 @@ function pushNav(newNav){ nav = newNav; history.pushState(nav, ''); render(); }
 function goClients(){ pushNav({level:'clients'}); }
 function goProjects(client){ pushNav({level:'projects', client}); }
 function goParts(client, project){ pushNav({level:'parts', client, project}); }
+function goPictures(client, project){ pushNav({level:'pictures', client, project}); }
 function goBack(){ history.back(); }
 
 window.addEventListener('popstate', (e)=>{
@@ -191,7 +189,7 @@ function render(){
 
   const titleEl = document.getElementById('pageTitle');
   const descEl = document.getElementById('projdesc');
-  if(nav.level === 'parts' && nav.project){
+  if((nav.level === 'parts' || nav.level === 'pictures') && nav.project){
     titleEl.textContent = nav.project;
     const pdesc = PROJECT_DESCRIPTIONS[nav.project];
     if(pdesc){
@@ -295,13 +293,24 @@ function render(){
     const rows = DATA.filter(d=>d.client===nav.client && d.project===nav.project);
     stats.textContent = `${rows.length} drawing${rows.length!==1?'s':''}`;
     const images = PROJECT_IMAGES[nav.project];
-    const picsHtml = images && images.length ? `
-      <div class="picstrip-wrap">
-        <div class="picstrip-label">Pictures (${images.length})</div>
-        <div class="picstrip">${images.map((url,i)=>`<img src="${url}" loading="lazy" data-idx="${i}" onclick='openGallery(${JSON.stringify(images)},${i})'>`).join('')}</div>
+    const picsTile = images && images.length ? `
+      <div class="tile" data-pictures="1">
+        <div class="tile-icon">🖼</div>
+        <div class="tile-mid"><div class="tile-title">Pictures</div><div class="tile-sub">${images.length} photo${images.length!==1?'s':''}</div></div>
+        <div class="chev">›</div>
       </div>` : '';
-    list.innerHTML = picsHtml + rows.map(renderPartRow).join('');
+    list.innerHTML = picsTile + rows.map(renderPartRow).join('');
+    const picsTileEl = list.querySelector('[data-pictures]');
+    if(picsTileEl) picsTileEl.addEventListener('click', ()=> goPictures(nav.client, nav.project));
     attachPartHandlers();
+  }
+
+  else if(nav.level === 'pictures'){
+    const images = PROJECT_IMAGES[nav.project] || [];
+    stats.textContent = `${images.length} photo${images.length!==1?'s':''}`;
+    list.innerHTML = `<div class="picgrid">${images.map((url,i)=>
+      `<img src="${url}" loading="lazy" onclick='openGallery(${JSON.stringify(images)},${i})'>`
+    ).join('')}</div>`;
   }
 }
 

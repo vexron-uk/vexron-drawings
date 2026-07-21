@@ -57,7 +57,7 @@
 
   .lightbox{position:fixed; inset:0; background:rgba(0,0,0,.94); z-index:1000; display:none; align-items:center; justify-content:center; touch-action:pan-y;}
   .lightbox.open{display:flex;}
-  .lightbox img{max-width:100vw; max-height:100vh; object-fit:contain; user-select:none; -webkit-user-select:none;}
+  .lightbox img{max-width:100vw; max-height:100vh; object-fit:contain; user-select:none; -webkit-user-select:none; touch-action:none;}
   .lightbox-close{position:absolute; top:16px; right:16px; width:40px; height:40px; border-radius:20px; background:rgba(255,255,255,.12); border:none; color:#fff; font-size:24px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center;}
   .lightbox-counter{position:absolute; top:24px; left:50%; transform:translateX(-50%); color:rgba(255,255,255,.7); font-size:13px; font-family:var(--mono);}
   .lightbox-nav{position:absolute; top:50%; transform:translateY(-50%); width:44px; height:44px; border-radius:22px; background:rgba(255,255,255,.1); border:none; color:#fff; font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center;}
@@ -361,11 +361,13 @@ function openGallery(images, idx){
 function closeGallery(){
   document.getElementById('lightbox').classList.remove('open');
   document.body.style.overflow = '';
+  if(typeof resetGalleryZoom === 'function') resetGalleryZoom();
 }
 
 function showGalleryImage(){
   document.getElementById('lightboxImg').src = galleryImages[galleryIndex];
   document.getElementById('lightboxCounter').textContent = `${galleryIndex+1} / ${galleryImages.length}`;
+  if(typeof resetGalleryZoom === 'function') resetGalleryZoom();
 }
 
 function galleryStep(delta){
@@ -375,18 +377,114 @@ function galleryStep(delta){
 
 (function(){
   const lb = document.getElementById('lightbox');
+  const img = document.getElementById('lightboxImg');
+
+  let scale = 1, panX = 0, panY = 0;
+  let pinchStartDist = 0, pinchStartScale = 1;
+  let panStartX = 0, panStartY = 0, panOriginX = 0, panOriginY = 0;
   let touchStartX = 0, touchStartY = 0;
+  let lastTapTime = 0, lastTapX = 0, lastTapY = 0;
+  let isPanning = false;
+
+  function applyTransform(withTransition){
+    img.style.transition = withTransition ? 'transform .2s ease-out' : 'none';
+    img.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+  }
+
+  function resetZoom(withTransition){
+    scale = 1; panX = 0; panY = 0;
+    applyTransform(withTransition);
+  }
+
+  function clampPan(){
+    // keep image roughly within view when zoomed
+    const maxX = (img.clientWidth * (scale-1)) / 2;
+    const maxY = (img.clientHeight * (scale-1)) / 2;
+    panX = Math.max(-maxX, Math.min(maxX, panX));
+    panY = Math.max(-maxY, Math.min(maxY, panY));
+  }
+
+  function dist(touches){
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
+  }
+
+  function toggleDoubleTapZoom(clientX, clientY){
+    if(scale > 1){
+      resetZoom(true);
+    } else {
+      scale = 2.5;
+      const rect = img.getBoundingClientRect();
+      panX = (rect.width/2 - (clientX - rect.left)) * (scale-1) / scale;
+      panY = (rect.height/2 - (clientY - rect.top)) * (scale-1) / scale;
+      clampPan();
+      applyTransform(true);
+    }
+  }
+
+  window.resetGalleryZoom = () => resetZoom(false);
+
   lb.addEventListener('touchstart', e => {
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
+    if(e.touches.length === 2){
+      pinchStartDist = dist(e.touches);
+      pinchStartScale = scale;
+      isPanning = false;
+    } else if(e.touches.length === 1){
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      if(scale > 1){
+        isPanning = true;
+        panStartX = touchStartX; panStartY = touchStartY;
+        panOriginX = panX; panOriginY = panY;
+      }
+    }
   }, {passive:true});
+
+  lb.addEventListener('touchmove', e => {
+    if(e.touches.length === 2){
+      const newDist = dist(e.touches);
+      scale = Math.max(1, Math.min(4, pinchStartScale * (newDist / pinchStartDist)));
+      clampPan();
+      applyTransform(false);
+    } else if(e.touches.length === 1 && isPanning){
+      panX = panOriginX + (e.touches[0].clientX - panStartX);
+      panY = panOriginY + (e.touches[0].clientY - panStartY);
+      clampPan();
+      applyTransform(false);
+    }
+  }, {passive:true});
+
   lb.addEventListener('touchend', e => {
+    isPanning = false;
+    if(scale <= 1.02){ resetZoom(true); }
+
+    if(e.touches.length > 0) return; // still fingers down (pinch ending)
+    if(scale > 1) return; // don't swipe-navigate while zoomed
+
     const dx = e.changedTouches[0].clientX - touchStartX;
     const dy = e.changedTouches[0].clientY - touchStartY;
+
+    // double-tap detection
+    const now = Date.now();
+    const tapDx = Math.abs(e.changedTouches[0].clientX - lastTapX);
+    const tapDy = Math.abs(e.changedTouches[0].clientY - lastTapY);
+    if(now - lastTapTime < 300 && tapDx < 30 && tapDy < 30 && Math.abs(dx) < 10 && Math.abs(dy) < 10){
+      toggleDoubleTapZoom(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+      lastTapTime = 0;
+      return;
+    }
+    lastTapTime = now;
+    lastTapX = e.changedTouches[0].clientX;
+    lastTapY = e.changedTouches[0].clientY;
+
     if(Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)){
       galleryStep(dx < 0 ? 1 : -1);
     }
   }, {passive:true});
+
+  img.addEventListener('dblclick', e => toggleDoubleTapZoom(e.clientX, e.clientY));
+
   lb.addEventListener('click', e => {
     if(e.target === lb) closeGallery();
   });
